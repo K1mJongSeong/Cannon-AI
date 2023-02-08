@@ -11,7 +11,11 @@
 <h1>사용 기술</h1>
 
 |python|
+
+
 |pyqt5|
+
+
 |Cycle GAN|
 
 
