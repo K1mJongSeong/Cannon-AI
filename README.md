@@ -10,12 +10,12 @@
 
 <h1>사용 기술</h1>
 
-|python|
+<img src="https://img.shields.io/badge/python-3776AB?style=for-the-badge&logo=python&logoColor=white">
 
 
-|pyqt5|
+<img src="https://img.shields.io/badge/pyqt5-792EE5?style=for-the-badge&logo=python&logoColor=white">
 
 
-|Cycle GAN|
+<img src="https://img.shields.io/badge/CycleGAN-FF6F00?style=for-the-badge&logo=python&logoColor=white">
 
 
