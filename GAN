@@ -1,0 +1,172 @@
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow import keras
+from tensorflow.keras import layers
+
+from tensorflow.keras.layers import Input, Conv2D, Flatten, Dense, Conv2DTranspose, Reshape, Lambda, Activation, BatchNormalization, LeakyReLU, Dropout, ZeroPadding2D, UpSampling2D
+from keras.layers.merge import _Merge
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras import backend as K
+from tensorflow.keras.optimizers import Adam, RMSprop
+from tensorflow.keras.utils import plot_model
+from tensorflow.keras.initializers import RandomNormal
+from random import randint
+
+import numpy as np
+import json
+import os
+import pickle as pkl
+import matplotlib.pyplot as plt
+
+import image_load as ds
+
+class GAN():
+    def __init__(self, EPOCHS, z_dim ,train_x, BATCH_SIZE, x, y, z):
+        self.d_losses = []
+        self.g_losses = []
+        self.EPOCHS = EPOCHS
+        self.z_dim = z_dim
+        self.train_x = train_x
+        self.BATCH_SIZE = BATCH_SIZE
+        self.C = x
+        self.W = y
+        self.H = z
+        self.CHECKPOINT = 50
+        self.OPTIMIZER = Adam(lr = 0.0002, decay = 8e-9)
+
+        self.generator = self._build_generator_model()
+
+        self.discriminator = self._build_discriminator_model()
+        
+        self.gan = self._build_gan_model()
+
+        self.summary()
+
+        self.train()
+
+    def _build_generator_model(self):
+        generator = tf.keras.Sequential([
+            keras.layers.Dense(4 * 4 * 128, input_shape = [self.z_dim]),
+            keras.layers.BatchNormalization(),
+            keras.layers.LeakyReLU(alpha= 0.2),
+            keras.layers.Reshape((4, 4, 128)),
+            keras.layers.UpSampling2D(size = (2,2)),
+            keras.layers.Conv2DTranspose(64, kernel_size = 5, strides =2, padding = "same", activation = "selu"),
+            keras.layers.BatchNormalization(),
+            keras.layers.UpSampling2D(size = (2,2)),
+            keras.layers.Conv2DTranspose(32, kernel_size = 5, strides =2, padding = "same", activation = "relu"),
+            keras.layers.BatchNormalization(),
+            keras.layers.UpSampling2D(size = (2,2)),
+            keras.layers.Conv2DTranspose(16, kernel_size = 5, strides =2, padding = "same", activation = "relu"),
+            keras.layers.BatchNormalization(),
+             keras.layers.Conv2DTranspose(1, kernel_size = 5, strides =2, padding = "same", activation = "tanh"),
+        ]) # Keras 모델 생성
+        
+        generator.compile(loss = 'binary_crossentropy', optimizer = self.OPTIMIZER, metrics = ['accuracy'])
+        return generator
+
+    def _build_discriminator_model(self):
+
+        discriminator = tf.keras.Sequential([
+        
+            keras.layers.Conv2D(12, (3, 3), strides=2, padding='same', input_shape=[512, 512, 1], activation = 'relu'), # input image size
+            keras.layers.Dropout(0.3),
+            keras.layers.Conv2D(32, (3, 3), strides=2, padding='same', activation = 'relu'),
+            keras.layers.Dropout(0.3),
+            keras.layers.Conv2D(64, (3, 3), strides=2, padding='same', activation = 'relu'),
+            keras.layers.Dropout(0.3),
+            keras.layers.Conv2D(128, (3, 3), strides=2, padding='same', activation = 'relu'),
+            keras.layers.Dropout(0.3),
+            keras.layers.Conv2D(256, (3, 3), strides=2, padding='same', activation = 'relu'),
+            keras.layers.Dropout(0.3),
+            keras.layers.Conv2D(512, (3, 3), strides=2, padding='same', activation = 'relu'),
+            keras.layers.Dropout(0.3),
+            keras.layers.Flatten(),
+            keras.layers.Dropout(0.3),
+            keras.layers.Dense(1, activation = 'sigmoid'),
+        ])
+        
+        discriminator.compile(loss = 'binary_crossentropy', optimizer = self.OPTIMIZER, metrics = ['accuracy'])
+        return discriminator
+
+    def _build_gan_model(self):
+        model = Sequential()
+        model.add(self.generator)
+        model.add(self.discriminator)
+
+        model.compile(loss = 'binary_crossentropy', optimizer = self.OPTIMIZER)
+        return model
+    
+    def summary(self):
+        self.generator.summary()
+        self.discriminator.summary()
+        self.gan.summary()  
+
+    def train(self):
+        for e in range(self.EPOCHS):
+            count_real_images = int(self.BATCH_SIZE)
+            starting_index = randint(0, (len(self.train_x)- count_real_images))
+            real_image_raw = self.train_x[ starting_index : (starting_index + count_real_images)]
+            x_real_image = real_image_raw.reshape( count_real_images, self.H, self.W, 1)
+            y_real_labels = np.ones([count_real_images, 1])
+
+            latent_space_samples = self.sample_latent_space(self.BATCH_SIZE)
+            x_generated_image = self.generator.predict(latent_space_samples)
+            y_generator_labels = np.zeros([self.BATCH_SIZE,1])
+
+            # print(x_real_image.shape)
+            # print(y_real_labels.shape)
+
+            x_batch = np.concatenate([x_real_image, x_generated_image])
+            y_batch = np.concatenate([y_real_labels, y_generator_labels])
+
+            discriminator_loss = self.discriminator.train_on_batch(x_batch, y_batch)[0]
+
+            if e % 5 == 0:
+              x_latent_space_samples = self.sample_latent_space(self.BATCH_SIZE)
+              y_generated_labels = np.ones([self.BATCH_SIZE,1])
+              generator_loss = self.gan.train_on_batch(x_latent_space_samples,y_generated_labels)
+            
+            if e % self.CHECKPOINT == 0 :
+                print ('Epoch: '+str(int(e))+', [Discriminator :: Loss: '+str(discriminator_loss)+'], [ Generator :: Loss: '+str(generator_loss)+']')
+        self.plot_checkpoint(e)
+
+
+
+
+    def sample_latent_space(self, instances):
+        return np.random.normal(0, 1, (instances, self.z_dim))
+
+    def plot_checkpoint(self,e):
+        noise = self.sample_latent_space(16)
+        images = self.generator.predict(noise)
+        print(images)
+        
+        print("###################################################################")
+
+        plt.figure(figsize=(4,4))
+        
+        for i in range(images.shape[0]):
+            # images = (images + np.min(images)) * (np.max(images) + np.min(images))
+            images = images * 255.0
+            image = images[i, :, :, :]
+            image = np.reshape(image, [self.H,self.W])
+            plt.imshow(image, cmap='gray')
+            plt.axis('off')
+        plt.tight_layout()
+        plt.show()
+        print(image)
+        return
+
+path = '.\\image\\dataset1\\'
+ds = ds.dataSet(path)
+EPOCHS = 100
+z_dim = 100
+train_x = ds.load_data(0.3)
+BATCH_SIZE = 6
+x, y, z = train_x.shape
+
+gan = GAN(EPOCHS, z_dim, train_x, BATCH_SIZE, x, y, z)
+train_x = train_x.reshape(x, y, z, 1)
+print(train_x.shape)    
