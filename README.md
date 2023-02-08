@@ -7,6 +7,11 @@
 2021.04.19~2021.10.20
 
 
+<h1>PDF</h1>
+
+
+https://docs.google.com/presentation/d/1W7a2eYrCpDrMjlIe5QG1AuhuY74w5BvH/edit#slide=id.p1
+
 
 <h1>사용 기술</h1>
 
